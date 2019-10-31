@@ -21,7 +21,7 @@ class DeviceAlias(object):
         elif mode.lower() == 'basic':
             cmd = "device-alias database ; no device-alias mode enhanced"
         else:
-            return self.__return_error("Invalid device alias mode: " + str(mode), "basic")
+            return self.__return_error("Invalid device alias mode: " + str(mode))
         return self.__send_device_alias_cmds(cmd)
 
     def create(self, name, pwwn):
@@ -39,12 +39,18 @@ class DeviceAlias(object):
         cmd = "device-alias database ; device-alias rename " + oldname + " " + newname
         return self.__send_device_alias_cmds(cmd)
 
+    def is_locked(self):
+        facts_out = self.get_facts()
+        if self.__locked_user(facts_out) is None:
+            return True
+        return False
+
     def clear_lock(self):
         cmd = "device-alias database ; clear device-alias session "
         try:
             self.__swobj.config(cmd)
         except CLIError as c:
-            return False, c.message
+            return True, c.message
 
     def is_device_alias_present(self, name):
         facts_out_da_entries = self.get_facts()['device_alias_entries']
@@ -66,6 +72,9 @@ class DeviceAlias(object):
         retoutput['device_alias_entries'] = da
 
         return dict(retoutput, **shdastatus)
+
+    def clear_database(self):
+        raise NotImplemented  # TODO
 
     @staticmethod
     def __get_mode(facts_out):
@@ -102,9 +111,9 @@ class DeviceAlias(object):
             except CLIError as c:
                 return self.__return_error(c.message, mode)
 
-        return True, None
+        return False, None
 
-    def __return_error(self, message, mode):
+    def __return_error(self, message, mode='enhanced'):
         log.error(message)
         if mode.lower() == 'enhanced':
             cmd = "device-alias database ; clear device-alias session "
@@ -112,4 +121,4 @@ class DeviceAlias(object):
                 self.__swobj.config(cmd)
             except CLIError as c:
                 return False, c.message
-        return False, message
+        return True, message

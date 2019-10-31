@@ -49,7 +49,7 @@ class ConnectNxapi(object):
         else:
             log.debug("'verify_ssl' flag is set to True, so hopefully SSL connections is setup")
 
-    def _build_payload(self, commands, method, rpc_version=u'2.0'):
+    def _build_payload(self, commands, rpc_version, method):
         """
 
         Args:
@@ -60,23 +60,36 @@ class ConnectNxapi(object):
         Returns:
 
         """
-        payload_list = []
 
-        id_num = 1
-        for command in commands:
-            payload = dict(jsonrpc=rpc_version,
-                           method=method,
-                           params=dict(cmd=command, version=1),
-                           id=id_num, )
+        if rpc_version is not None:
+            payload_list = []
+            id_num = 1
+            for command in commands:
+                payload = dict(jsonrpc=rpc_version,
+                               method=method,
+                               params=dict(cmd=command, version=1),
+                               id=id_num, )
 
-            payload_list.append(payload)
-            id_num += 1
+                payload_list.append(payload)
+                id_num += 1
+            log.debug("Payload list is :")
+            log.debug(payload_list)
+            return payload_list
+        else:
+            cmd = ";".join(commands)
+            payload = dict(ins_api=dict(
+                version="1.2",
+                type=method,
+                chunk='0',
+                sid='1',
+                input=cmd.strip(),
+                output_format='json'
+            ))
+            log.debug("Payload is :")
+            log.debug(payload)
+            return payload
 
-        log.debug("Payload list is :")
-        log.debug(payload_list)
-        return payload_list
-
-    def send_request(self, commands, method=u'cli', timeout=30):
+    def send_request(self, commands, rpc_version=u'2.0', method=u'cli', timeout=30):
         """
 
         Args:
@@ -88,15 +101,19 @@ class ConnectNxapi(object):
             response_list
         """
         timeout = int(timeout)
-        payload_list = self._build_payload(commands, method)
-        # print(timeout)
+        payload = self._build_payload(commands, rpc_version, method)
+        if rpc_version is None:
+            header = {u'content-type': u'application/json'}
+        else:
+            header = self.headers
+        log.debug(self.url)
         response = requests.post(self.url,
                                  timeout=timeout,
-                                 data=json.dumps(payload_list),
-                                 headers=self.headers,
+                                 data=json.dumps(payload),
+                                 headers=header,
                                  auth=HTTPBasicAuth(self.username, self.password),
                                  verify=self.verify_ssl)
-
+        log.debug("req response")
         log.debug(response)
         response_list = json.loads(response.text)
 

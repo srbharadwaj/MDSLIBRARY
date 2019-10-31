@@ -1,8 +1,11 @@
 __author__ = 'Suhas Bharadwaj (subharad)'
 
 import logging
+import urllib3
+import requests
 from mdslib.connection_manager.connect_nxapi import ConnectNxapi
 from mdslib.connection_manager.errors import CLIError
+from mdslib.parsers.system.shtopology import ShowTopology
 from mdslib.modules.devicealias import DeviceAlias
 # from mdslib.modules.zone import DeviceAlias
 # from mdslib.modules.zoneset import DeviceAlias
@@ -11,6 +14,31 @@ from mdslib.modules.devicealias import DeviceAlias
 import time
 
 log = logging.getLogger(__name__)
+
+
+def log_exception(logger):
+    """
+    A decorator that wraps the passed in function and logs
+    exceptions should one occur
+
+    @param logger: The logging object
+    """
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except:
+                # log the exception
+                err = "There was an exception in  "
+                err += func.__name__
+                logger.exception(err)
+            # re-raise the exception
+            raise
+
+        return wrapper
+
+    return decorator
 
 
 class Switch(object):
@@ -31,17 +59,28 @@ class Switch(object):
         self.__username = username
         self.__password = password
         self.connectiontype = connection_type
-        self.__port = port
+        self.port = port
         self.timeout = timeout
         self.__verify_ssl = verify_ssl
 
-        log.debug("Opening up a __connection for the switch with ip " + ip_address)
+        log.info("Opening up a connection for switch with ip " + ip_address)
         self.__connection = ConnectNxapi(ip_address, username, password, transport=connection_type, port=port,
                                          verify_ssl=verify_ssl)
-        # self.__msg_format = "xml"
-        # self.__cmd_type = "cli_show"
 
-        # self.__log_info_about_url_msgfmt_cmdtype()
+        self.can_connect = False
+        # Get version of the switch and log it
+        self.log_version()
+
+    @log_exception(log)
+    def log_version(self):
+        try:
+            log.debug(self.version)
+            self.can_connect = True
+        except requests.exceptions.ConnectionError as e:
+            msg = "ERROR!! Connection refused for the switch : " + self.ipaddr + \
+                  " Verify that the switch has " + self.connectiontype + " configured with port " + str(self.port)
+            log.error(msg)
+
 
     @property
     def ipaddr(self):
@@ -146,18 +185,39 @@ class Switch(object):
             else:
                 raise CLIError(command, 'Invalid command.')
 
-    def _cli_command(self, commands, method=u'cli'):
+        error = command_response.get(u'clierror')
+        if error:
+            command = command_response.get(u'input')
+            raise CLIError(command, error)
+
+    def _cli_command(self, commands, rpc=u'2.0', method=u'cli'):
         if not isinstance(commands, list):
             commands = [commands]
 
-        conn_response = self.__connection.send_request(commands, method=method, timeout=self.timeout)
+        conn_response = self.__connection.send_request(commands, rpc_version=rpc, method=method, timeout=self.timeout)
+        log.debug("conn_response is")
+        log.debug(conn_response)
 
         text_response_list = []
-        for command_response in conn_response:
-            self._cli_error_check(command_response)
-            text_response_list.append(command_response[u'result'])
-
+        if rpc is not None:
+            for command_response in conn_response:
+                self._cli_error_check(command_response)
+                text_response_list.append(command_response[u'result'])
+        else:
+            text_response_list = []
+            for command_response in conn_response:
+                if 'ins_api' in command_response.keys():
+                    retout = command_response['ins_api']['outputs']['output']
+                    if type(retout) is dict:
+                        fullout = [retout]
+                    else:
+                        fullout = retout
+                    for eachoutput in fullout:
+                        # print(eachoutput)
+                        self._cli_error_check(eachoutput)
+                        text_response_list.append(eachoutput[u'body'])
         return text_response_list
+
 
     def show(self, command, raw_text=False):
         """Send a show command.
@@ -204,7 +264,7 @@ class Switch(object):
 
         return return_list
 
-    def config(self, command):
+    def config(self, command, rpc=u'2.0', method=u'cli'):
         """Send a configuration command.
         Args:
             command (str): The command to send to the device.
@@ -212,17 +272,17 @@ class Switch(object):
             CLIError: If there is a problem with the supplied command.
         """
         commands = [command]
-        list_result = self.config_list(commands)
+        list_result = self.config_list(commands, rpc, method)
         return list_result[0]
 
-    def config_list(self, commands):
+    def config_list(self, commands, rpc=u'2.0', method=u'cli'):
         """Send a list of configuration commands.
         Args:
             commands (list): A list of commands to send to the device.
         Raises:
             CLIError: If there is a problem with one of the commands in the list.
         """
-        return_list = self._cli_command(commands)
+        return_list = self._cli_command(commands, rpc=rpc, method=method)
 
         log.debug("Config commands sent are :")
         log.debug(commands)
@@ -319,5 +379,61 @@ class Switch(object):
         log.info("Reload was successful")
         return {'SUCESS': None}
 
-    def get_device_alias_handler(self):
-        return DeviceAlias(self)
+    def is_npv_switch(self):
+        jsonoutput = True
+        try:
+            flist = self.show("show feature")
+        except CLIError as c:
+            if "cannot be parsed by the server" in c.message:
+                jsonoutput = False
+                flist = self.show("show feature", raw_text=True)
+                log.debug(c)
+            else:
+                log.error(
+                    "Could not discover the entire fabric, since 'show feature' could not be run on the switch " + self.ipaddr)
+
+        if not jsonoutput:
+            for eachline in flist.splitlines():
+                if 'npv' in eachline:
+                    if 'enabled' in eachline.lower():
+                        return True
+                    else:
+                        return False
+        else:
+            flist = flist['TABLE_cfcFeatureCtrl2Table']['ROW_cfcFeatureCtrl2Table']
+            # print(flist)
+            for eachf in flist:
+                if eachf['cfcFeatureCtrlName2'].strip() == 'npv':
+                    if eachf['cfcFeatureCtrlOpStatus2'].strip().lower() == 'enabled':
+                        return True
+                    else:
+                        return False
+        return False
+
+    def get_peer_switches(self):
+        peer_sw_list = []
+        shtopoout = self.show("show topology", raw_text=True)
+        sh = ShowTopology(shtopoout.splitlines())
+        for vsan, interfacelist in sh.parse_data.items():
+            for eachinterface in interfacelist:
+                peer_sw_ip = eachinterface['peer_ip']
+                peer_sw_list.append(peer_sw_ip)
+        peerlist = list(dict.fromkeys(peer_sw_list))
+        log.debug("Peer NPIV list of switch : " + self.ipaddr + " are: ")
+        log.debug(peerlist)
+        return peerlist
+
+    def get_peer_npv_switches(self):
+        retout = []
+        fcnsout = self.show("show fcns database detail")['TABLE_fcns_vsan']['ROW_fcns_vsan']
+        for eachline in fcnsout:
+            temp = eachline['TABLE_fcns_database']['ROW_fcns_database']
+            # print(temp)
+            if type(temp['fc4_types_fc4_features']) is str:
+                if temp['fc4_types_fc4_features'].strip() == 'npv':
+                    ip = temp['node_ip_addr']
+                    retout.append(ip)
+        peerlist = list(dict.fromkeys(retout))
+        log.debug("Peer NPV list of switch : " + self.ipaddr + " are: ")
+        log.debug(peerlist)
+        return peerlist

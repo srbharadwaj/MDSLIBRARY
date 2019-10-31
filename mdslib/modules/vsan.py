@@ -44,9 +44,9 @@ class Vsan(object):
             self.__swobj.config(cmd)
         except CLIError as c:
             log.error(c)
-            return False, c.message
+            return True, c.message
 
-        return True, None
+        return False, None
 
     def delete(self):
         try:
@@ -58,23 +58,23 @@ class Vsan(object):
             cmd = "no terminal dont-ask"
             self.__swobj.config(cmd)
             log.error(c)
-            return False, c.message
+            return True, c.message
         finally:
             cmd = "no terminal dont-ask"
             self.__swobj.config(cmd)
-        return True, None
+        return False, None
 
-    def add_interfaces(self, interface):
-        cmd = "vsan database ; vsan " + str(self.id) + " interface " + interface
+    def add_interfaces(self, interfaces):
+        cmd = "vsan database ; vsan " + str(self.id) + " interface " + ','.join(interfaces)
         try:
             self.__swobj.config(cmd)
         except CLIError as c:
             if "membership being configured is already configured for the interface" in c.message:
-                return True, None
+                return False, None
             log.error(c)
-            return False, c.message
+            return True, c.message
 
-        return True, None
+        return False, None
 
     def suspend(self, state=True):
         cmd = "vsan database ; "
@@ -86,9 +86,9 @@ class Vsan(object):
             self.__swobj.config(cmd)
         except CLIError as c:
             log.error(c)
-            return False, c.message
+            return True, c.message
 
-        return True, None
+        return False, None
 
     def get_facts(self):
         shvsan = self.__swobj.show("show vsan")
@@ -104,7 +104,8 @@ class Vsan(object):
                 shvsan_req_out = eachele
                 break
         if not shvsan_req_out:
-            return (False, "No info for vsan " + str(self.id))
+            log.debug("No info for vsan " + str(self.id))
+            return None
 
         # Parse show vsan membership json output
         try:

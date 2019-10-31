@@ -3,10 +3,13 @@ __author__ = 'Suhas Bharadwaj (subharad)'
 import logging
 import threading
 from functools import wraps
+import urllib3
 
 from mdslib.switch import Switch
+from mdslib.parsers.system.shtopology import ShowTopology
+from mdslib.connection_manager.errors import CLIError
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def wait_till_connect_threads_complete(fn):
@@ -55,6 +58,7 @@ class Fabric(object):
         self.__fab_swpassword = ""
         self.__fab_swconntype = ""
         self.__sw_obj_dict = {}
+        self.discovered_switches = None
 
     @property
     def name(self):
@@ -64,177 +68,6 @@ class Fabric(object):
 
         """
         return self.__fab_name
-
-    '''
-    def discover_all_switches_in_fabric(self, seed_ip, username='admin', __password='nbv_12345', conntype='ssh',
-                                        discover_npv=True):
-        """
-
-        :param seed_ip:
-        :param username:
-        :param __password:
-        :param conntype:
-        :param discover_npv:
-        :return:
-        """
-
-        error = False
-        errorDetails = "None"
-
-        if conntype != 'ssh' and conntype != 'telnet':
-            errorDetails = "Conntype argument has to be 'ssh' or 'telnet', for nxapi use the method 'connect_to_nxapi_switch' "
-            logger.error(errorDetails)
-            return [error, errorDetails]
-
-        self.__fab_seed_sw_ip = seed_ip
-        ips_to_be_discovered = [seed_ip]
-
-        while ips_to_be_discovered.__len__() != 0:
-
-            self.__connect_to_all_dut_switches(ips_to_be_discovered, username, __password, conntype)
-
-            if self.__fab_sw_obj_dict[seed_ip].is_switch_in_NPV_mode():
-                error = True
-                errorDetails = "Switch ip " + seed_ip + " is an NPV switch, you cannot use NPV switch as seed switch"
-                logger.error(errorDetails)
-                return [error, errorDetails]
-            else:
-                self.__execute_sh_topo(ips_to_be_discovered)
-                if discover_npv:
-                    self.__execute_sh_fcns_da_detail(ips_to_be_discovered)
-
-                peer_ip_list = []
-                for ip in ips_to_be_discovered:
-                    peer_ip_list.extend(self.__fab_sw_obj_dict[ip].get_peer_ip_list())
-                    if discover_npv:
-                        peer_ip_list.extend(self.__fab_sw_obj_dict[ip].get_peer_npv_ip_list())
-                ips_to_be_discovered = set(peer_ip_list)
-                for ip in self.__fab_sw_obj_dict.keys():
-                    if ip in ips_to_be_discovered:
-                        ips_to_be_discovered.remove(ip)
-
-        return [error, errorDetails]
-
-    def connect_to_switches_in_fabric(self, fabric_switch_ip_list, username='admin', __password='nbv_12345',
-                                      conntype='ssh'):
-        """
-
-        :param fabric_switch_ip_list:
-        :param username:
-        :param __password:
-        :param conntype:
-        :return:
-        """
-
-        error = False
-        errorDetails = "None"
-
-        self.__connect_to_all_dut_switches(fabric_switch_ip_list, username, __password, conntype)
-
-        return [error, errorDetails]
-
-    def connect_to_nxapi_switch(self, ip_address, username='admin', __password='nbv_12345', url=''):
-        """
-
-        :param ip_address:
-        :param username:
-        :param __password:
-        :param url:
-        :return:
-        """
-        self.__fab_swuser = username
-        self.__fab_swpassword = __password
-        self.__fab_swconntype = 'nxapi'
-        nxapi_sw = Nxapi_Switch(ip_address, username, __password, url)
-        self.__fab_sw_obj_dict[ip_address] = nxapi_sw
-
-        return self.__fab_sw_obj_dict[ip_address]
-
-    @wait_till_connect_threads_complete
-    def __execute_sh_topo(self, swip_swobj_dict):
-        """
-
-        :param swip_swobj_dict:
-        :return:
-        """
-        for ip in swip_swobj_dict:
-            self.__fab_sw_obj_dict[ip].execute_sh_topo_cmd()
-        # print("ece")
-        return ""
-
-    @wait_till_connect_threads_complete
-    def __execute_sh_fcns_da_detail(self, swip_swobj_dict):
-        """
-
-        :param swip_swobj_dict:
-        :return:
-        """
-        for ip in swip_swobj_dict:
-            self.__fab_sw_obj_dict[ip].execute_sh_fcns_da_detail_cmd()
-        # print("sh fc")
-        return ""
-
-    @wait_till_connect_threads_complete
-    def __execute_sh_int_brief_and_sh_zs_active_cmd(self):
-        """
-
-        :return:
-        """
-        for ip in self.__fab_sw_obj_dict.keys():
-            self.__fab_sw_obj_dict[ip].execute_sh_int_brief_and_sh_zs_active_cmd()
-        # print("sh fc")
-        return ""
-
-    @wait_till_connect_threads_complete
-    def __connect_to_all_dut_switches(self, fabric_switch_ip_list, username, __password, conntype):
-        """
-         Creates a switch object with each ip in self.__fab_switch_ip_list
-        Then connects to the siwtch by calling the switch's 'connect' method
-        Since switch's 'connect' method runs in a thread, we call the decorator
-        'wait_till_connect_threads_complete' to make sure all threads are complete, that means
-        all switches were connected successfully
-        :param fabric_switch_ip_list:
-        :param username:
-        :param __password:
-        :param conntype:
-        :return: None
-        """
-
-        self.__fab_swuser = username
-        self.__fab_swpassword = __password
-        self.__fab_swconntype = conntype
-
-        for ip in fabric_switch_ip_list:
-            # Create Switch object
-            s = Switch(ip, self.__fab_swuser, self.__fab_swpassword, self.__fab_swconntype)
-            # Append that switch object to a list
-            self.__fab_sw_obj_dict[ip] = s
-            # Connect to that switch
-            s.connect()
-
-        return self.get_all_sw_objs()
-
-    def get_fabric_name(self):
-        """
-
-        :return:
-        """
-        return self.__fab_name
-
-    def get_all_sw_objs(self):
-        """
-        Return the list of all switch objects
-        :return: self.__fab_sw_obj_dict
-        """
-        return self.__fab_sw_obj_dict
-
-    def get_all_sw_ip_addrs(self):
-        """
-
-        :return:
-        """
-        return sorted(self.__fab_sw_obj_dict.keys())
-    '''
 
     def connect_to_switches(self, switch_list, username, password, connection_type='https', port=None, timeout=30,
                             verify_ssl=True):
@@ -254,3 +87,74 @@ class Fabric(object):
                            timeout=timeout, verify_ssl=verify_ssl)
             self.__sw_obj_dict[eachsw_ip] = swobj
         return self.__sw_obj_dict
+
+    def discover_all_switches_in_fabric(self, seed_switch_ip, username, password, connection_type='https', port=None,
+                                        timeout=30, verify_ssl=True, discover_npv=True):
+        discovered_switches = {}
+        log.info("Discovering all switches in the fabric with the seed switch : " + seed_switch_ip)
+        swobj = Switch(seed_switch_ip, username=username, password=password, connection_type=connection_type, port=port,
+                       timeout=timeout, verify_ssl=verify_ssl)
+
+        if swobj.can_connect:
+            discovered_switches[swobj.ipaddr] = swobj
+        else:
+            msg = "ERROR!! Unable to connect to the seed switch : " + swobj.ipaddr + \
+                  " via " + swobj.connectiontype + " with port " + str(
+                swobj.port) + " . Make sure that NXAPI is enabled."
+            log.error(msg)
+            return False
+
+        if (swobj.is_npv_switch()):
+            log.error(
+                "The seed switch({0}) is a NPV switch, please provide a NPIV switch as seed switch to discover the entire fabric".
+                format(swobj.ipaddr))
+            return False
+
+        peer_switches = swobj.get_peer_switches()
+        # print(peer_switches)
+
+        i = 0
+        while i < len(peer_switches):
+            each_ip = peer_switches[i]
+            i = i + 1
+            # for each_ip in peer_switches:
+            if each_ip in discovered_switches.keys():
+                continue
+            else:
+                # print(discovered_switches)
+                swobj = Switch(each_ip, username=username, password=password, connection_type=connection_type,
+                               port=port,
+                               timeout=timeout, verify_ssl=verify_ssl)
+
+                if swobj.can_connect:
+                    discovered_switches[swobj.ipaddr] = swobj
+                    peers = swobj.get_peer_switches()
+                    peer_switches = peer_switches + peers
+                else:
+                    msg = "ERROR!! Unable to connect to the switch : " + swobj.ipaddr + \
+                          " via " + swobj.connectiontype + " with port " + str(
+                        port) + " . Make sure that NXAPI is enabled."
+                    log.debug(msg)
+
+        # print(discovered_switches)
+
+        if discover_npv:
+            allswlist = list(discovered_switches.keys())
+            for swobj in discovered_switches.values():
+                allswlist = allswlist + swobj.get_peer_npv_switches()
+            allswlist = list(dict.fromkeys(allswlist))
+            for eachswip in allswlist:
+                if eachswip not in discovered_switches.keys():
+                    swobj = Switch(eachswip, username=username, password=password, connection_type=connection_type,
+                                   port=port,
+                                   timeout=timeout, verify_ssl=verify_ssl)
+                    if swobj.can_connect:
+                        discovered_switches[swobj.ipaddr] = swobj
+                    else:
+                        msg = "ERROR!! Unable to connect to the seed switch : " + swobj.ipaddr + \
+                              " via " + swobj.connectiontype + " with port " + str(
+                            port) + " . Make sure that NXAPI is enabled."
+                        log.debug(msg)
+
+        self.discovered_switches = discovered_switches
+        return True
