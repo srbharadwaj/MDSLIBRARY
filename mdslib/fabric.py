@@ -39,16 +39,13 @@ def wait_till_connect_threads_complete(fn):
 
 class Fabric(object):
     """
-
+    Fabric class
     """
-
     def __init__(self, name="New Fabric"):
         """
 
-        Args:
-            name:
+        :param name: Name of the fabric
         """
-
         # Fabric name
         self.__fab_name = name
 
@@ -63,9 +60,8 @@ class Fabric(object):
     @property
     def name(self):
         """
-
-        Returns:
-
+        Returns name of the fabric
+        :return: Returns name of the fabric
         """
         return self.__fab_name
 
@@ -73,14 +69,22 @@ class Fabric(object):
                             verify_ssl=True):
         """
 
-        :param switch_list:
-        :param username:
-        :param password:
-        :param connection_type:
-        :param port:
-        :param timeout:
-        :param verify_ssl:
-        :return:
+        :param switch_list: List of switch ips that needs to be connected to
+        :type switch_list: list
+        :param username: username of the switches
+        :type username: str
+        :param password: password of the switches
+        :type password: str
+        :param connection_type: type of the connection http or https default is https
+        :type connection_type:str
+        :param port: http or https port, default is 8443
+        :type port:int
+        :param timeout: connection or command timeout in secs, default is 30s
+        :type timeout:int
+        :param verify_ssl: Default is True, please set it to False if there is no SSL defined between the switches and the host
+        :type verify_ssl:bool
+        :return: Dictionary with key value pair as switch ip and Switch object
+        :rtype: dict
         """
         for eachsw_ip in switch_list:
             swobj = Switch(eachsw_ip, username=username, password=password, connection_type=connection_type, port=port,
@@ -88,8 +92,30 @@ class Fabric(object):
             self.__sw_obj_dict[eachsw_ip] = swobj
         return self.__sw_obj_dict
 
-    def discover_all_switches_in_fabric(self, seed_switch_ip, username, password, connection_type='https', port=None,
+    def discover_all_switches_in_fabric(self, seed_switch_ip, username, password, connection_type='https', port=8443,
                                         timeout=30, verify_ssl=True, discover_npv=True):
+        """
+        Discover all the switches in the fabric using the seed switch ip
+
+        :param seed_switch_ip: Seed switch ip that needs to be used to discover the fabric
+        :type seed_switch_ip: list
+        :param username: username of the switches
+        :type username: str
+        :param password: password of the switches
+        :type password: str
+        :param connection_type: type of the connection http or https default is https
+        :type connection_type:str
+        :param port: http or https port, default is 8443
+        :type port:int
+        :param timeout: connection or command timeout in secs, default is 30s
+        :type timeout:int
+        :param verify_ssl: Default is True, please set it to False if there is no SSL defined between the switches and the host
+        :type verify_ssl:bool
+        :param discover_npv: discover NPV switches in the fabric, default us True
+        :type discover_npv: bool
+        :return: Returns True if discovery is successful
+        :rtype: bool
+        """
         discovered_switches = {}
         log.info("Discovering all switches in the fabric with the seed switch : " + seed_switch_ip)
         swobj = Switch(seed_switch_ip, username=username, password=password, connection_type=connection_type, port=port,

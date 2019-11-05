@@ -27,7 +27,7 @@ class Zone(object):
             cmd = "no " + cmd
         else:
             return self.__return_error("Invalid zone mode: " + str(mode), "basic")
-        return self.__send_zone_cmds(cmd)
+        return self._send_zone_cmds(cmd)
 
     @property
     def zone_names(self):
@@ -53,20 +53,20 @@ class Zone(object):
     def create(self, name):
         log.debug("Create zone with name " + name + " in vsan " + str(self.vsan))
         cmd = "zone name " + name + " vsan " + str(self.vsan)
-        return self.__send_zone_cmds(cmd)
+        return self._send_zone_cmds(cmd)
 
     def delete(self, name):
         log.debug("Delete zone with name " + name + " in vsan " + str(self.vsan))
         cmd = "no zone name " + name + " vsan " + str(self.vsan)
-        return self.__send_zone_cmds(cmd)
+        return self._send_zone_cmds(cmd)
 
     def add_members(self, name, members):
         cmds = self.__member_add_del(self.vsan, name, members)
-        return self.__send_zone_cmds(cmds)
+        return self._send_zone_cmds(cmds)
 
     def remove_members(self, name, members):
         cmds = self.__member_add_del(self.vsan, name, members, add=False)
-        return self.__send_zone_cmds(cmds)
+        return self._send_zone_cmds(cmds)
 
     @staticmethod
     def __member_add_del(vsan, name, members, add=True):
@@ -134,7 +134,7 @@ class Zone(object):
             else:
                 return lock
 
-    def __send_zone_cmds(self, command):
+    def _send_zone_cmds(self, command):
         log.debug(command)
         facts_out = self.get_facts()
         mode = self.__get_mode(facts_out)

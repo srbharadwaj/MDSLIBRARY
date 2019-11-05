@@ -17,16 +17,7 @@ class ConnectNxapi(object):
     """
 
     def __init__(self, host, username, password, transport=u'https', port=None, verify_ssl=True):
-        """
 
-        Args:
-            host:
-            username:
-            password:
-            transport:
-            port:
-            verify_ssl:
-        """
         if transport not in ['http', 'https']:
             raise NXOSError('\'%s\' is an invalid transport.' % transport)
 

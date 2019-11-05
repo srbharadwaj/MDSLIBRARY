@@ -46,7 +46,7 @@ class Switch(object):
     The is a switch __connection class which is used to discover switch via nxapi
     """
 
-    def __init__(self, ip_address, username, password, connection_type='https', port=None, timeout=30, verify_ssl=True):
+    def __init__(self, ip_address, username, password, connection_type='https', port=8443, timeout=30, verify_ssl=True):
         """
 
         :param ip_address:
