@@ -3,7 +3,6 @@ __author__ = 'Suhas Bharadwaj (subharad)'
 import logging
 import threading
 from functools import wraps
-import urllib3
 
 from mdslib.switch import Switch
 from mdslib.parsers.system.shtopology import ShowTopology
@@ -41,6 +40,7 @@ class Fabric(object):
     """
     Fabric class
     """
+
     def __init__(self, name="New Fabric"):
         """
 
@@ -133,7 +133,7 @@ class Fabric(object):
         if (swobj.is_npv_switch()):
             log.error(
                 "The seed switch({0}) is a NPV switch, please provide a NPIV switch as seed switch to discover the entire fabric".
-                format(swobj.ipaddr))
+                    format(swobj.ipaddr))
             return False
 
         peer_switches = swobj.get_peer_switches()

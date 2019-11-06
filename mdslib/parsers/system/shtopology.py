@@ -56,9 +56,9 @@ class ShowTopology(object):
                     self.__data[vsan] = tuple(val)
                     val = []
                 vsan = matchvsan.group(1)
-            #print(vsan)
+            # print(vsan)
             matchval = re.match(self.__pat_for_value_line, line)
-            #print(matchval)
+            # print(matchval)
             if matchval:
                 local_int = matchval.group(1)
                 peer_dom = matchval.group(2)

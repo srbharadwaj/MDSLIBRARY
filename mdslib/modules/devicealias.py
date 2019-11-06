@@ -13,6 +13,25 @@ class DeviceAlias(object):
         facts_out = self.get_facts()
         return self.__get_mode(facts_out)
 
+    @property
+    def distribute(self):
+        facts_out = self.get_facts()
+        dis = self.__get_distribute(facts_out)
+        if dis.lower() == 'enabled':
+            return True
+        else:
+            return False
+
+    @distribute.setter
+    def distribute(self, distribute):
+        if distribute:
+            cmd = "device-alias database ; device-alias distribute"
+            log.debug("Setting device alias mode to 'Enabled'")
+        else:
+            cmd = "device-alias database ; no device-alias distribute"
+            log.debug("Setting device alias mode to 'Disabled'")
+        return self.__send_device_alias_cmds(cmd)
+
     @mode.setter
     def mode(self, mode):
         log.debug("Setting device alias mode to " + mode)
@@ -81,6 +100,10 @@ class DeviceAlias(object):
         return facts_out['database_mode']
 
     @staticmethod
+    def __get_distribute(facts_out):
+        return facts_out['fabric_distribution']
+
+    @staticmethod
     def __locked_user(facts_out):
         if 'Locked_by_user' in facts_out.keys():
             return facts_out['Locked_by_user']
@@ -91,6 +114,7 @@ class DeviceAlias(object):
         log.debug(command)
         facts_out = self.get_facts()
         mode = self.__get_mode(facts_out)
+        distribute = self.__get_distribute(facts_out)
 
         lock_user = self.__locked_user(facts_out)
         if lock_user is not None:
@@ -104,8 +128,8 @@ class DeviceAlias(object):
         except CLIError as c:
             return self.__return_error(c.message, mode)
 
-        if mode.lower() == 'enhanced':
-            cmd = "device-alias database ; device-alias commit"
+        if distribute:
+            cmd = "terminal dont-ask ; device-alias database ; device-alias commit ; no terminal dont-ask "
             try:
                 self.__swobj.config(cmd)
             except CLIError as c:
@@ -116,7 +140,7 @@ class DeviceAlias(object):
     def __return_error(self, message, mode='enhanced'):
         log.error(message)
         if mode.lower() == 'enhanced':
-            cmd = "device-alias database ; clear device-alias session "
+            cmd = "terminal dont-ask ; device-alias database ; clear device-alias session ; no terminal dont-ask "
             try:
                 self.__swobj.config(cmd)
             except CLIError as c:

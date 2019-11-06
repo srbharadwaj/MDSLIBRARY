@@ -65,9 +65,13 @@ class Vsan(object):
         return False, None
 
     def add_interfaces(self, interfaces):
-        cmd = "vsan database ; vsan " + str(self.id) + " interface " + ','.join(interfaces)
+        # cmd = "vsan database ; vsan " + str(self.id) + " interface " + ','.join(interfaces)
+        cmdlist = []
+        for eachint in interfaces:
+            cmd = "vsan database ; vsan " + str(self.id) + " interface " + eachint
+            cmdlist.append(cmd)
         try:
-            self.__swobj.config(cmd)
+            self.__swobj.config_list(cmdlist)
         except CLIError as c:
             if "membership being configured is already configured for the interface" in c.message:
                 return False, None

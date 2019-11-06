@@ -1,14 +1,11 @@
 __author__ = 'Suhas Bharadwaj (subharad)'
 
 import logging
-import urllib3
 import requests
 from mdslib.connection_manager.connect_nxapi import ConnectNxapi
 from mdslib.connection_manager.errors import CLIError
 from mdslib.parsers.system.shtopology import ShowTopology
 from mdslib.modules.devicealias import DeviceAlias
-# from mdslib.modules.zone import DeviceAlias
-# from mdslib.modules.zoneset import DeviceAlias
 
 
 import time
@@ -80,7 +77,6 @@ class Switch(object):
             msg = "ERROR!! Connection refused for the switch : " + self.ipaddr + \
                   " Verify that the switch has " + self.connectiontype + " configured with port " + str(self.port)
             log.error(msg)
-
 
     @property
     def ipaddr(self):
@@ -217,7 +213,6 @@ class Switch(object):
                         self._cli_error_check(eachoutput)
                         text_response_list.append(eachoutput[u'body'])
         return text_response_list
-
 
     def show(self, command, raw_text=False):
         """Send a show command.
